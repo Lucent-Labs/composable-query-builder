@@ -460,7 +460,6 @@ mod tests {
             .where_(("posts.id = ?", 1))?;
 
         let b = sub.clone().into_builder();
-        println!("{:?}", b.sql());
 
         let q = Select::from("users")
             .left_join(("(?) as sub on users.id = sub.user_id", sub))?
@@ -469,6 +468,21 @@ mod tests {
 
         assert_eq!(
             "select * from users left join (select id, user_id from posts where posts.id = $1) as sub on users.id = sub.user_id",
+            query
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn nested_where() -> QResult<()> {
+        let w: Where = ("(orders > ? and orders < ?)", 1, 10).try_into()?;
+        let q = Select::from("users")
+            .where_(("id = ? or ?", 1, w))?
+            .into_builder();
+        let query = q.sql();
+
+        assert_eq!(
+            "select * from users where id = $1 or (orders > $2 and orders < $3) ",
             query
         );
         Ok(())
