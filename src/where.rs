@@ -1,6 +1,7 @@
 use crate::bool_kind::BoolKind;
-use crate::error::{QResult, QueryError};
+use crate::error::QueryError;
 use crate::sql_value::SQLValue;
+use crate::util::placeholder_count;
 
 #[derive(Clone)]
 pub enum Where {
@@ -76,13 +77,5 @@ where
             values: vec![value.1.into(), value.2.into(), value.3.into()],
             kind: BoolKind::And,
         })
-    }
-}
-
-fn placeholder_count(s: &str, exp: usize) -> QResult<()> {
-    if s.chars().into_iter().filter(|c| *c == '?').count() != exp {
-        Err(QueryError::IncorrectPlaceholderCount(s.to_string(), exp))
-    } else {
-        Ok(())
     }
 }

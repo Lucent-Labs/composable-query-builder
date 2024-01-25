@@ -1,13 +1,16 @@
 mod bool_kind;
 mod error;
+mod join;
 mod optional_num;
 mod order;
 mod select;
 mod sql_value;
+mod util;
 mod r#where;
 
 use crate::bool_kind::BoolKind;
 use crate::error::{QResult, QueryError};
+use crate::join::{Join, JoinKind};
 use crate::optional_num::IntoOptional;
 use crate::order::OrderDir;
 use crate::r#where::Where;
@@ -20,6 +23,7 @@ use sqlx::{Postgres, QueryBuilder};
 pub struct Select {
     table: Option<TableType>,
     select: Vec<String>,
+    join: Vec<(JoinKind, Join)>,
     where_: Vec<Where>,
     order_by: Option<(String, OrderDir)>,
     limit: Option<u64>,
@@ -56,6 +60,14 @@ impl Select {
     pub fn table(mut self, table: impl Into<TableType>) -> Self {
         self.table = Some(table.into());
         self
+    }
+
+    pub fn left_join<T>(mut self, join: T) -> QResult<Self>
+    where
+        T: TryInto<Join, Error = QueryError>,
+    {
+        self.join.push((JoinKind::Left, join.try_into()?));
+        Ok(self)
     }
 
     pub fn where_<T>(mut self, where_: T) -> QResult<Self>
@@ -121,6 +133,34 @@ impl Select {
             None => panic!("No table specified"),
         }
 
+        // Joins
+        for (kind, join) in self.join {
+            match join {
+                Join::Simple(s) => {
+                    q.push(' ');
+                    q.push_str(kind.as_str());
+                    q.push_str(" join ");
+                    q.push_str(&s);
+                }
+                Join::SubQuery(s, select) => {
+                    q.push(' ');
+                    q.push_str(kind.as_str());
+                    q.push_str(" join ");
+                    let (sub_q, sub_vals) = select.parts();
+
+                    // When creating the join we check to ensure we have at least one `?`
+                    let mut parts = s.split('?').into_iter();
+                    q.push_str(parts.next().unwrap());
+                    q.push_str(sub_q.trim());
+                    if let Some(part) = parts.next() {
+                        q.push_str(part);
+                    }
+
+                    vals.extend(sub_vals);
+                }
+            }
+        }
+
         // Where
         if !self.where_.is_empty() {
             q.push_str(" where ");
@@ -182,7 +222,12 @@ impl Select {
         // In cases where we have a trailing placeholder, the number of query parts and placeholders
         // will be equal
         // "select * from users limit $1"
-        assert!(parts.len() == v.len() + 1 || parts.len() == v.len());
+        assert!(
+            parts.len() == v.len() + 1 || parts.len() == v.len(),
+            "Query part count and placeholder count mismatch\nQuery: {:?}\nwith {} vals",
+            parts,
+            v.len()
+        );
 
         for pair in parts.into_iter().zip_longest(v.into_iter()) {
             match pair {
@@ -348,5 +393,40 @@ mod tests {
         let query = q.sql();
 
         assert_eq!("select * from users offset $1", query);
+    }
+
+    #[test]
+    fn simple_join() -> QResult<()> {
+        let q = Select::from("users")
+            .left_join("posts on users.id = posts.user_id")?
+            .into_builder();
+        let query = q.sql();
+
+        assert_eq!(
+            "select * from users left join posts on users.id = posts.user_id",
+            query
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn nested_join() -> QResult<()> {
+        let sub = Select::from("posts")
+            .select(("id", "user_id"))
+            .where_(("posts.id = ?", 1))?;
+
+        let b = sub.clone().into_builder();
+        println!("{:?}", b.sql());
+
+        let q = Select::from("users")
+            .left_join(("(?) as sub on users.id = sub.user_id", sub))?
+            .into_builder();
+        let query = q.sql();
+
+        assert_eq!(
+            "select * from users left join (select id, user_id from posts where posts.id = $1) as sub on users.id = sub.user_id",
+            query
+        );
+        Ok(())
     }
 }
