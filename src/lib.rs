@@ -129,7 +129,7 @@ impl Select {
         q.push_str(" from ");
         match self.table {
             Some(TableType::Simple(s)) => q.push_str(s.as_str()),
-            Some(TableType::Complex(s, _)) => todo!(),
+            Some(TableType::Complex(..)) => todo!(),
             None => panic!("No table specified"),
         }
 
@@ -148,8 +148,10 @@ impl Select {
                     q.push_str(" join ");
                     let (sub_q, sub_vals) = select.parts();
 
-                    // When creating the join we check to ensure we have at least one `?`
-                    let mut parts = s.split('?').into_iter();
+                    let mut parts = s.split('?');
+
+                    // When creating the join we check to ensure we have
+                    // at least one `?`, so this unwrap should be safe.
                     q.push_str(parts.next().unwrap());
                     q.push_str(sub_q.trim());
                     if let Some(part) = parts.next() {
@@ -195,14 +197,12 @@ impl Select {
         if let Some(limit) = self.limit {
             q.push_str(" limit ");
             vals.push(limit.into());
-            // vals.push(&mut SQLValue::U64(limit));
         }
 
         // Offset
         if let Some(offset) = self.offset {
             q.push_str(" offset ");
             vals.push(offset.into());
-            // vals.push(&mut SQLValue::U64(offset));
         }
 
         (q, vals)
@@ -212,33 +212,20 @@ impl Select {
         let mut qb: QueryBuilder<Postgres> = QueryBuilder::new("");
 
         let (p, v) = self.parts();
-        let mut parts = p.split('?').collect::<Vec<_>>();
-        // The query should always have either exactly the same, or one more
-        // placeholder than the number of query parts.
-        //
-        // In most cases, we'll have something like "select * from users where id = ? order by id desc",
-        // giving 2 query parts and one placeholder.
-        //
-        // In cases where we have a trailing placeholder, the number of query parts and placeholders
-        // will be equal
-        // "select * from users limit $1"
-        assert!(
-            parts.len() == v.len() + 1 || parts.len() == v.len(),
-            "Query part count and placeholder count mismatch\nQuery: {:?}\nwith {} vals",
-            parts,
-            v.len()
-        );
+        let parts = p.split('?').collect::<Vec<_>>();
+        assert_query_part_and_placeholder_lengths_correct(&parts, v.len());
 
         for pair in parts.into_iter().zip_longest(v.into_iter()) {
+            use EitherOrBoth::*;
             match pair {
-                EitherOrBoth::Both(part, v) => {
+                Both(part, v) => {
                     qb.push(part);
                     v.push_bind(&mut qb);
                 }
-                EitherOrBoth::Left(part) => {
+                Left(part) => {
                     qb.push(part);
                 }
-                EitherOrBoth::Right(v) => {
+                Right(v) => {
                     v.push_bind(&mut qb);
                 }
             }
@@ -246,6 +233,29 @@ impl Select {
 
         qb
     }
+}
+
+fn assert_query_part_and_placeholder_lengths_correct(query_parts: &[&str], placeholders: usize) {
+    assert!(
+        query_parts.len() == placeholders + 1 || query_parts.len() == placeholders,
+        "Query part count and placeholder count mismatch.
+
+The query should always have either exactly the same, or one
+more placeholder than the number of query parts.
+
+In most cases, we'll have something like \"select * from users where id = ? order by id desc\",
+giving 2 query parts and one placeholder.
+
+In cases where we have a trailing placeholder, the number of query parts and placeholders
+will be equal: \"select * from users limit $1\"
+
+    {} Query parts: {:?}
+Placeholder count: {}
+",
+        query_parts.len(),
+        query_parts,
+        placeholders,
+    );
 }
 
 #[cfg(test)]
