@@ -1,6 +1,7 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(u8)]
 pub enum BoolKind {
+    #[default]
     And,
     Or,
 }

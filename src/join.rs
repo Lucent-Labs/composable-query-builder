@@ -2,7 +2,7 @@ use crate::error::QueryError;
 use crate::util::placeholder_count;
 use crate::Select;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum JoinKind {
     Left,
 }
@@ -15,7 +15,7 @@ impl JoinKind {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Join {
     Simple(String),
     SubQuery(String, Select),

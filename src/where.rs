@@ -2,6 +2,61 @@ use crate::bool_kind::BoolKind;
 use crate::error::{QResult, QueryError};
 use crate::sql_value::SQLValue;
 use crate::util::placeholder_count;
+use std::fmt::Debug;
+
+#[derive(Default)]
+pub struct WhereBuilder {
+    expr: String,
+    values: Vec<SQLValue>,
+    kind: BoolKind,
+}
+
+impl WhereBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn where_<T>(mut self, v: T) -> QResult<Self>
+    where
+        T: TryInto<Where, Error = QueryError>,
+    {
+        if !self.values.is_empty() {
+            self.expr.push_str(" and ");
+        }
+
+        let w: Where = v.try_into()?;
+        w.into_where(&mut self.expr, &mut self.values)?;
+
+        Ok(self)
+    }
+
+    pub fn or_where<T>(mut self, v: T) -> QResult<Self>
+    where
+        T: TryInto<Where, Error = QueryError>,
+    {
+        if !self.values.is_empty() {
+            self.expr.push_str(" or ");
+        }
+
+        let w: Where = v.try_into()?;
+        w.into_where(&mut self.expr, &mut self.values)?;
+
+        Ok(self)
+    }
+
+    pub fn kind(mut self, kind: BoolKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    pub fn build(self) -> Where {
+        Where::Simple {
+            expr: self.expr,
+            values: self.values,
+            kind: self.kind,
+        }
+    }
+}
 
 pub trait IntoWhere {
     fn into_where(self, expr: &mut String, vals: &mut Vec<SQLValue>) -> QResult<()>;
@@ -32,7 +87,7 @@ impl IntoWhere for Where {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Where {
     Simple {
         expr: String,

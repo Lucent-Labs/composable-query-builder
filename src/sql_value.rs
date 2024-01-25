@@ -112,6 +112,18 @@ impl From<String> for SQLValue {
     }
 }
 
+impl From<&String> for SQLValue {
+    fn from(v: &String) -> Self {
+        SQLValue::String(v.to_string())
+    }
+}
+
+impl From<&str> for SQLValue {
+    fn from(v: &str) -> Self {
+        SQLValue::String(v.to_string())
+    }
+}
+
 impl From<bool> for SQLValue {
     fn from(v: bool) -> Self {
         SQLValue::Bool(v)

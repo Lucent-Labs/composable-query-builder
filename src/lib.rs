@@ -13,15 +13,14 @@ use crate::error::QResult;
 use crate::join::{Join, JoinKind};
 use crate::optional_num::IntoOptional;
 pub use crate::order::OrderDir;
-use crate::r#where::Where;
+pub use crate::r#where::{Where, WhereBuilder};
 use crate::select::IntoSelect;
 use crate::sql_value::SQLValue;
+pub use error::QueryError;
 use itertools::{EitherOrBoth, Itertools};
 use sqlx::{Postgres, QueryBuilder};
 
-pub use error::QueryError;
-
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Select {
     table: Option<TableType>,
     select: Vec<String>,
@@ -33,7 +32,7 @@ pub struct Select {
     offset: Option<u64>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum TableType {
     Simple(String),
     Complex(String, Vec<Select>),
@@ -126,7 +125,7 @@ impl Select {
         self
     }
 
-    fn parts(self) -> (String, Vec<SQLValue>) {
+    pub fn parts(self) -> (String, Vec<SQLValue>) {
         let mut q = "select ".to_string();
         let mut vals: Vec<SQLValue> = vec![];
 
@@ -286,6 +285,7 @@ Placeholder count: {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::r#where::WhereBuilder;
 
     #[test]
     fn basic_select_star() {
@@ -483,6 +483,24 @@ mod tests {
 
         assert_eq!(
             "select * from users where id = $1 or (orders > $2 and orders < $3) ",
+            query
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn where_builder() -> QResult<()> {
+        let w = WhereBuilder::new()
+            .where_(("name ilike %?%", "test"))?
+            .where_(("email ilike %?%", "test"))?
+            .where_(("business ilike %?%", "test"))?
+            .build();
+
+        let q = Select::from("users").where_(("(?)", w))?.into_builder();
+        let query = q.sql();
+
+        assert_eq!(
+            "select * from users where (name ilike %$1% and email ilike %$2% and business ilike %$3%) ",
             query
         );
         Ok(())
