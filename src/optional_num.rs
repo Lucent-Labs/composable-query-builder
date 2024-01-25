@@ -2,14 +2,14 @@ pub trait IntoOptional<T> {
     fn into_optional(self) -> Option<T>;
 }
 
-impl IntoOptional<u64> for u64 {
-    fn into_optional(self) -> Option<u64> {
+impl<T> IntoOptional<T> for T {
+    fn into_optional(self) -> Option<T> {
         Some(self)
     }
 }
 
-impl IntoOptional<u64> for Option<u64> {
-    fn into_optional(self) -> Option<u64> {
+impl<T> IntoOptional<T> for Option<T> {
+    fn into_optional(self) -> Option<T> {
         self
     }
 }

@@ -9,15 +9,17 @@ mod util;
 mod r#where;
 
 use crate::bool_kind::BoolKind;
-use crate::error::{QResult, QueryError};
+use crate::error::QResult;
 use crate::join::{Join, JoinKind};
 use crate::optional_num::IntoOptional;
-use crate::order::OrderDir;
+pub use crate::order::OrderDir;
 use crate::r#where::Where;
 use crate::select::IntoSelect;
 use crate::sql_value::SQLValue;
 use itertools::{EitherOrBoth, Itertools};
 use sqlx::{Postgres, QueryBuilder};
+
+pub use error::QueryError;
 
 #[derive(Clone, Default)]
 pub struct Select {
@@ -26,6 +28,7 @@ pub struct Select {
     join: Vec<(JoinKind, Join)>,
     where_: Vec<Where>,
     order_by: Option<(String, OrderDir)>,
+    group_by: Option<String>,
     limit: Option<u64>,
     offset: Option<u64>,
 }
@@ -78,6 +81,16 @@ impl Select {
         Ok(self)
     }
 
+    pub fn where_in(mut self, col: impl Into<String>, values: Vec<i64>) -> Self {
+        let expr = format!("{} = ANY(?)", col.into());
+        self.where_.push(Where::Simple {
+            expr,
+            values: vec![values.into()],
+            kind: BoolKind::And,
+        });
+        self
+    }
+
     pub fn or_where<T>(mut self, where_: T) -> QResult<Self>
     where
         T: TryInto<Where, Error = QueryError>,
@@ -90,6 +103,11 @@ impl Select {
 
     pub fn select(mut self, column: impl IntoSelect) -> Self {
         self.select.append(&mut column.into_select());
+        self
+    }
+
+    pub fn group_by(mut self, group_by: impl Into<String>) -> Self {
+        self.group_by = group_by.into().into_optional();
         self
     }
 
@@ -161,6 +179,13 @@ impl Select {
                     vals.extend(sub_vals);
                 }
             }
+        }
+
+        // Group by
+        if let Some(group_by) = self.group_by {
+            q.push_str(" group by ");
+            q.push_str(&group_by);
+            q.push(' ');
         }
 
         // Where
@@ -330,6 +355,15 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn basic_where_in() {
+        let q = Select::from("users")
+            .where_in("id", vec![1, 2, 3])
+            .into_builder();
+        let sql = q.sql();
+        assert_eq!("select * from users where id = ANY($1) ", sql);
     }
 
     #[test]
