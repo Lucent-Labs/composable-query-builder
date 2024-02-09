@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use sqlx::{Postgres, QueryBuilder};
 
 /// SQLValue is an enum wrapper around the various types that can be bound to a query.
@@ -26,6 +26,7 @@ pub enum SQLValue {
     U64(u64),
     F64(f64),
     DateTime(NaiveDateTime),
+    Date(NaiveDate),
     VecI64(Vec<i64>),
     String(String),
     Bool(bool),
@@ -40,6 +41,7 @@ impl SQLValue {
             SQLValue::U64(v) => qb.push_bind(*v as i64),
             SQLValue::F64(v) => qb.push_bind(*v),
             SQLValue::DateTime(v) => qb.push_bind(*v),
+            SQLValue::Date(v) => qb.push_bind(*v),
             SQLValue::VecI64(v) => qb.push_bind(v.clone()),
             SQLValue::String(v) => qb.push_bind(v.clone()),
             SQLValue::Bool(v) => qb.push_bind(*v),
@@ -57,6 +59,7 @@ impl SQLValue {
             SQLValue::U64(v) => v.into(),
             SQLValue::F64(v) => v.into(),
             SQLValue::DateTime(v) => v.into(),
+            SQLValue::Date(v) => v.into(),
             SQLValue::VecI64(v) => v.into(),
             SQLValue::String(v) => v.into(),
             SQLValue::Bool(v) => v.into(),
@@ -85,6 +88,12 @@ impl From<i64> for SQLValue {
 impl From<NaiveDateTime> for SQLValue {
     fn from(v: NaiveDateTime) -> Self {
         SQLValue::DateTime(v)
+    }
+}
+
+impl From<NaiveDate> for SQLValue {
+    fn from(v: NaiveDate) -> Self {
+        SQLValue::Date(v)
     }
 }
 

@@ -6,4 +6,6 @@ pub type QResult<T> = Result<T, QueryError>;
 pub enum QueryError {
     #[error("incorrect placeholder count in query: {0} expected {1}")]
     IncorrectPlaceholderCount(String, usize),
+    #[error("infallible")]
+    Infallible(#[from] std::convert::Infallible),
 }

@@ -10,3 +10,4 @@ chrono = { version = "0.4.32", features = ["serde"] }
 itertools = "0.12.0"
 sqlx = { version = "0.7.3", features = ["runtime-tokio-native-tls", "postgres", "chrono", "time"] }
 thiserror = "1.0.56"
+serde = { version = "1.0.196", features = ["derive"] }

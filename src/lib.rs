@@ -48,6 +48,11 @@ impl From<String> for TableType {
         TableType::Simple(value)
     }
 }
+impl From<(&str, Select)> for TableType {
+    fn from((stmt, value): (&str, Select)) -> Self {
+        TableType::Complex(stmt.to_string(), vec![value])
+    }
+}
 
 impl Select {
     pub fn new() -> Self {
@@ -72,9 +77,15 @@ impl Select {
         Ok(self)
     }
 
-    pub fn where_<T>(mut self, where_: T) -> QResult<Self>
+    /// where expressions are constructed as tuples, with the first
+    /// value being an Into<String> with a `?` placeholder.
+    ///
+    /// One, two, or three values can be passed in, in addition to
+    /// the first string value.
+    pub fn where_<T, E>(mut self, where_: T) -> QResult<Self>
     where
-        T: TryInto<Where, Error = QueryError>,
+        T: TryInto<Where, Error = E>,
+        QueryError: From<E>,
     {
         self.where_.push(where_.try_into()?);
         Ok(self)
@@ -100,6 +111,10 @@ impl Select {
         Ok(self)
     }
 
+    /// column can be:
+    /// - something string like (String, &str),
+    /// - a tuple of 2, 3, or 4 string like things
+    /// - a vec of string like things
     pub fn select(mut self, column: impl IntoSelect) -> Self {
         self.select.append(&mut column.into_select());
         self
@@ -110,6 +125,10 @@ impl Select {
         self
     }
 
+    /// ## Danger: SQL injection
+    ///
+    /// The passed `col` is _not_ sanitized. If this is taking
+    /// user input, it should be compared against an allow-list.
     pub fn order_by(mut self, col: impl Into<String>, dir: OrderDir) -> Self {
         self.order_by = Some((col.into(), dir));
         self
@@ -146,7 +165,35 @@ impl Select {
         q.push_str(" from ");
         match self.table {
             Some(TableType::Simple(s)) => q.push_str(s.as_str()),
-            Some(TableType::Complex(..)) => todo!(),
+            Some(TableType::Complex(s, v)) => {
+                // println!("q at the start is {}", q);
+                // println!("vals at the start are {:?}", vals);
+
+                let mut parts = s.split("?");
+                if let Some(part) = parts.next() {
+                    q.push_str(part);
+                }
+                for (i, select) in v.iter().enumerate() {
+                    let (sub_q, sub_vals) = select.clone().parts();
+                    // println!("sub_q: {}", sub_q);
+                    // println!("sub_vals: {:?}", sub_vals);
+                    // q.push_str(" (");
+                    q.push_str(sub_q.as_str());
+                    // q.push(')');
+                    if i < v.len() - 1 {
+                        q.push_str(", ");
+                    }
+                    vals.extend(sub_vals);
+
+                    if let Some(part) = parts.next() {
+                        q.push_str(part);
+                    }
+                }
+
+                while let Some(part) = parts.next() {
+                    q.push_str(part);
+                }
+            }
             None => panic!("No table specified"),
         }
 
@@ -180,13 +227,6 @@ impl Select {
             }
         }
 
-        // Group by
-        if let Some(group_by) = self.group_by {
-            q.push_str(" group by ");
-            q.push_str(&group_by);
-            q.push(' ');
-        }
-
         // Where
         if !self.where_.is_empty() {
             q.push_str(" where ");
@@ -206,6 +246,13 @@ impl Select {
                     }
                 }
             }
+        }
+
+        // Group by
+        if let Some(group_by) = self.group_by {
+            q.push_str(" group by ");
+            q.push_str(&group_by);
+            q.push(' ');
         }
 
         // Order by
@@ -228,6 +275,8 @@ impl Select {
             q.push_str(" offset ");
             vals.push(offset.into());
         }
+
+        // println!("at the end q is {:?}", q);
 
         (q, vals)
     }
@@ -503,6 +552,20 @@ mod tests {
             "select * from users where (name ilike %$1% and email ilike %$2% and business ilike %$3%) ",
             query
         );
+        Ok(())
+    }
+
+    #[test]
+    fn union() -> QResult<()> {
+        let a = Select::from("users").select("id").where_(("id = ?", 1))?;
+        let b = Select::from("users").select("id").where_(("id = ?", 2))?;
+        let u = Select::from(("(?) as a", a))
+            .left_join(("(?) as b on a.id = b.id", b))?
+            .into_builder();
+        println!("{}", u.sql());
+
+        let exp = "select * from (select id from users where id = $1 ) as a left join (select id from users where id = $2) as b on a.id = b.id";
+        assert_eq!(u.sql(), exp);
         Ok(())
     }
 }
