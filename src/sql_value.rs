@@ -1,4 +1,5 @@
 use chrono::{NaiveDate, NaiveDateTime};
+use serde_json::Value;
 use sqlx::{Postgres, QueryBuilder};
 
 /// SQLValue is an enum wrapper around the various types that can be bound to a query.
@@ -30,6 +31,7 @@ pub enum SQLValue {
     VecI64(Vec<i64>),
     String(String),
     Bool(bool),
+    Json(Value),
 }
 
 impl SQLValue {
@@ -45,6 +47,7 @@ impl SQLValue {
             SQLValue::VecI64(v) => qb.push_bind(v.clone()),
             SQLValue::String(v) => qb.push_bind(v.clone()),
             SQLValue::Bool(v) => qb.push_bind(*v),
+            SQLValue::Json(v) => qb.push_bind(v.clone()),
         };
     }
 
@@ -63,6 +66,7 @@ impl SQLValue {
             SQLValue::VecI64(v) => v.into(),
             SQLValue::String(v) => v.into(),
             SQLValue::Bool(v) => v.into(),
+            SQLValue::Json(v) => v.into(),
         }
     }
 }
@@ -136,5 +140,11 @@ impl From<&str> for SQLValue {
 impl From<bool> for SQLValue {
     fn from(v: bool) -> Self {
         SQLValue::Bool(v)
+    }
+}
+
+impl From<Value> for SQLValue {
+    fn from(v: Value) -> Self {
+        SQLValue::Json(v)
     }
 }

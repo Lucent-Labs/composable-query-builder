@@ -71,15 +71,10 @@ impl<T: Into<SQLValue>> IntoWhere for T {
 }
 
 impl IntoWhere for Where {
-    fn into_where(self, expr: &mut String, vals: &mut Vec<SQLValue>) -> QResult<()> {
+    fn into_where(self, expression: &mut String, vals: &mut Vec<SQLValue>) -> QResult<()> {
         match self {
-            Where::Simple {
-                expr: e,
-                values,
-                kind,
-            } => {
-                // expr.push_str(&format!(" {} ", kind.as_str()));
-                expr.push_str(&e);
+            Where::Simple { expr, values, .. } => {
+                expression.push_str(&expr);
                 vals.extend(values);
                 Ok(())
             }
@@ -171,7 +166,7 @@ where
     type Error = QueryError;
 
     fn try_from((expr, v1, v2): (S, V1, V2)) -> Result<Self, Self::Error> {
-        let mut input_expr: String = expr.into();
+        let input_expr: String = expr.into();
         placeholder_count(&input_expr, 2)?;
 
         let mut expr = String::new();
