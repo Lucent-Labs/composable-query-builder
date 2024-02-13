@@ -266,13 +266,13 @@ impl Select {
 
         // Limit
         if let Some(limit) = self.limit {
-            q.push_str(" limit ");
+            q.push_str(" limit ?");
             vals.push(limit.into());
         }
 
         // Offset
         if let Some(offset) = self.offset {
-            q.push_str(" offset ");
+            q.push_str(" offset ?");
             vals.push(offset.into());
         }
 

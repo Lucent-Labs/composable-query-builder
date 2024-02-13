@@ -104,6 +104,34 @@ impl Where {
     }
 }
 
+impl TryFrom<&str> for Where {
+    type Error = QueryError;
+
+    fn try_from(input_expr: &str) -> Result<Self, Self::Error> {
+        placeholder_count(input_expr, 0)?;
+
+        Ok(Where::Simple {
+            expr: input_expr.to_string(),
+            values: vec![],
+            kind: BoolKind::And,
+        })
+    }
+}
+
+impl TryFrom<String> for Where {
+    type Error = QueryError;
+
+    fn try_from(input_expr: String) -> Result<Self, Self::Error> {
+        placeholder_count(&input_expr, 0)?;
+
+        Ok(Where::Simple {
+            expr: input_expr,
+            values: vec![],
+            kind: BoolKind::And,
+        })
+    }
+}
+
 impl<S, V> TryFrom<(S, V)> for Where
 where
     S: Into<String>,
