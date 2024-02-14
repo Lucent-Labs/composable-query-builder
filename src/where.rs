@@ -8,6 +8,7 @@ use std::fmt::Debug;
 pub struct WhereBuilder {
     expr: String,
     values: Vec<SQLValue>,
+    count: usize,
     kind: BoolKind,
 }
 
@@ -20,12 +21,13 @@ impl WhereBuilder {
     where
         T: TryInto<Where, Error = QueryError>,
     {
-        if !self.values.is_empty() {
+        if self.count > 0 {
             self.expr.push_str(" and ");
         }
 
         let w: Where = v.try_into()?;
         w.into_where(&mut self.expr, &mut self.values)?;
+        self.count += 1;
 
         Ok(self)
     }
@@ -34,12 +36,13 @@ impl WhereBuilder {
     where
         T: TryInto<Where, Error = QueryError>,
     {
-        if !self.values.is_empty() {
+        if self.count > 0 {
             self.expr.push_str(" or ");
         }
 
         let w: Where = v.try_into()?;
         w.into_where(&mut self.expr, &mut self.values)?;
+        self.count += 1;
 
         Ok(self)
     }

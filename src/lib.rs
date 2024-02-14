@@ -568,4 +568,21 @@ mod tests {
         assert_eq!(u.sql(), exp);
         Ok(())
     }
+
+    #[test]
+    fn multiple_string() -> QResult<()> {
+        let w = WhereBuilder::new()
+            .or_where("id = 1")?
+            .or_where("id = 2")?
+            .or_where("id = 3")?
+            .build();
+
+        let q = Select::from("users").where_(("?", w))?.into_builder();
+        let query = q.sql();
+        assert_eq!(
+            "select * from users where id = 1 or id = 2 or id = 3 ",
+            query
+        );
+        Ok(())
+    }
 }
