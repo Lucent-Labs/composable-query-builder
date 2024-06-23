@@ -65,6 +65,17 @@ pub trait IntoWhere {
     fn into_where(self, expr: &mut String, vals: &mut Vec<SQLValue>) -> QResult<()>;
 }
 
+impl<T: Into<SQLValue>> IntoWhere for Option<T> {
+    fn into_where(self, expr: &mut String, vals: &mut Vec<SQLValue>) -> QResult<()> {
+        expr.push('?');
+        match self {
+            Some(v) => vals.push(v.into()),
+            None => vals.push(SQLValue::Null),
+        }
+        Ok(())
+    }
+}
+
 impl<T: Into<SQLValue>> IntoWhere for T {
     fn into_where(self, expr: &mut String, vals: &mut Vec<SQLValue>) -> QResult<()> {
         expr.push('?');

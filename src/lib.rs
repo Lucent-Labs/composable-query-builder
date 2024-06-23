@@ -508,8 +508,6 @@ mod tests {
             .select(("id", "user_id"))
             .where_(("posts.id = ?", 1))?;
 
-        let b = sub.clone().into_builder();
-
         let q = Select::from("users")
             .left_join(("(?) as sub on users.id = sub.user_id", sub))?
             .into_builder();

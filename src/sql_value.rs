@@ -12,12 +12,14 @@ use sqlx::{Postgres, QueryBuilder};
 /// use composable_query_builder2::Select;
 /// let query = Select::new()
 ///     .table("users")
-///     .where_clause("status_id = ?", 2) // an int
-///     .where_clause("email = ?", "test@example") // a string
+///     .where_(("status_id = ?", 2)) // an int
+///     .unwrap()
+///     .where_(("email = ?", "test@example")) // a string
+///     .unwrap()
 ///     .into_builder();
 ///
 /// let sql = query.sql();
-/// assert_eq!("select * from users where status_id = $1 and email = $2", sql);
+/// assert_eq!("select * from users where status_id = $1 and email = $2", sql.trim());
 /// ```
 #[derive(Debug, Clone)]
 pub enum SQLValue {
@@ -32,6 +34,7 @@ pub enum SQLValue {
     String(String),
     Bool(bool),
     Json(Value),
+    Null,
 }
 
 impl SQLValue {
@@ -48,6 +51,7 @@ impl SQLValue {
             SQLValue::String(v) => qb.push_bind(v.clone()),
             SQLValue::Bool(v) => qb.push_bind(*v),
             SQLValue::Json(v) => qb.push_bind(v.clone()),
+            SQLValue::Null => qb.push_bind("null"),
         };
     }
 
@@ -67,6 +71,7 @@ impl SQLValue {
             SQLValue::String(v) => v.into(),
             SQLValue::Bool(v) => v.into(),
             SQLValue::Json(v) => v.into(),
+            SQLValue::Null => ().into(),
         }
     }
 }
@@ -146,5 +151,11 @@ impl From<bool> for SQLValue {
 impl From<Value> for SQLValue {
     fn from(v: Value) -> Self {
         SQLValue::Json(v)
+    }
+}
+
+impl From<()> for SQLValue {
+    fn from(_: ()) -> Self {
+        SQLValue::Null
     }
 }
