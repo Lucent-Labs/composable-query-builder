@@ -43,6 +43,11 @@ impl From<&str> for TableType {
         TableType::Simple(value.to_string())
     }
 }
+impl From<&String> for TableType {
+    fn from(value: &String) -> Self {
+        TableType::Simple(value.to_string())
+    }
+}
 impl From<String> for TableType {
     fn from(value: String) -> Self {
         TableType::Simple(value)
