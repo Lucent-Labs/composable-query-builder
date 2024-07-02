@@ -13,7 +13,7 @@ use crate::error::QResult;
 use crate::join::{Join, JoinKind};
 use crate::optional_num::IntoOptional;
 pub use crate::order::OrderDir;
-pub use crate::r#where::{Where, WhereBuilder};
+pub use crate::r#where::{IntoWhere, Where, WhereBuilder};
 use crate::select::IntoSelect;
 use crate::sql_value::SQLValue;
 pub use error::QueryError;
