@@ -15,7 +15,7 @@ use crate::optional_num::IntoOptional;
 pub use crate::order::OrderDir;
 pub use crate::r#where::{IntoWhere, Where, WhereBuilder};
 use crate::select::IntoSelect;
-use crate::sql_value::SQLValue;
+pub use crate::sql_value::SQLValue;
 pub use error::QueryError;
 use itertools::{EitherOrBoth, Itertools};
 use sqlx::{Postgres, QueryBuilder};
