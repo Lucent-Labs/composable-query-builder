@@ -679,4 +679,17 @@ mod tests {
         assert_eq!("select * from users", q.into_builder().sql());
         Ok(())
     }
+
+    #[test]
+    fn can_select_from_slices_and_arrays() -> QResult<()> {
+        let q = Select::from("users").select(["id", "email"].as_slice());
+        assert_eq!("select id, email from users", q.into_builder().sql());
+
+        let q = Select::from("users").select(["id", "email"]);
+        assert_eq!("select id, email from users", q.into_builder().sql());
+
+        let q = Select::from("users").select(&["id", "email"]);
+        assert_eq!("select id, email from users", q.into_builder().sql());
+        Ok(())
+    }
 }
