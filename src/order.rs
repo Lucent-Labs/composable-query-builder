@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -16,11 +18,15 @@ impl OrderDir {
     }
 }
 
-impl ToString for OrderDir {
-    fn to_string(&self) -> String {
-        match self {
-            OrderDir::Asc => "asc".to_string(),
-            OrderDir::Desc => "desc".to_string(),
-        }
+impl Display for OrderDir {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                OrderDir::Asc => "asc",
+                OrderDir::Desc => "desc",
+            }
+        )
     }
 }

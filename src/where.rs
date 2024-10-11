@@ -106,9 +106,16 @@ pub enum Where {
 }
 
 impl Where {
+    /// Sets the kind
     pub fn kind(&mut self, kind: BoolKind) {
         match self {
             Where::Simple { kind: k, .. } => *k = kind,
+        }
+    }
+
+    pub fn get_kind(&self) -> BoolKind {
+        match self {
+            Where::Simple { kind, .. } => *kind,
         }
     }
 }
