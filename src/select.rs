@@ -1,3 +1,10 @@
+/// Converts one or more values into a list of column names.
+///
+/// Accepts:
+///   - &str
+///   - String
+///   - Vec<Into<String>>
+///   - Tuple of 2, 3, or 4 Into<String>
 pub trait IntoSelect {
     fn into_select(self) -> Vec<String>;
 }

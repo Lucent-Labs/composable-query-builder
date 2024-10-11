@@ -18,7 +18,7 @@ impl JoinKind {
 #[derive(Debug, Clone)]
 pub enum Join {
     Simple(String),
-    SubQuery(String, Select),
+    SubQuery(String, Box<Select>),
 }
 
 impl TryFrom<String> for Join {
@@ -43,6 +43,6 @@ impl<T: Into<String>> TryFrom<(T, Select)> for Join {
     fn try_from((expr, select): (T, Select)) -> Result<Self, Self::Error> {
         let expr = expr.into();
         placeholder_count(&expr, 1)?;
-        Ok(Join::SubQuery(expr, select))
+        Ok(Join::SubQuery(expr, Box::new(select)))
     }
 }

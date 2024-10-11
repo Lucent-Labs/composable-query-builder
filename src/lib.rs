@@ -64,16 +64,33 @@ impl Select {
         Self::default()
     }
 
+    /// Shorthand for creating a new Select builder, then
+    /// setting the table.
+    ///
+    /// Example:
+    /// ```
+    /// use composable_query_builder2::Select;
+    /// Select::from("my_table");
+    /// ```
     pub fn from(table: impl Into<TableType>) -> Self {
         let q = Self::new();
         q.table(table)
     }
 
+    /// Example:
+    /// ```
+    /// use composable_query_builder2::Select;
+    /// Select::new().table("my_table");
+    /// ```
+    ///
+    /// You will probably wany to use [Select::from] in most cases
     pub fn table(mut self, table: impl Into<TableType>) -> Self {
         self.table = Some(table.into());
         self
     }
 
+    /// The passed item should _not_ contain leading "left join" text.
+    /// That is added automatically.
     pub fn left_join<T>(mut self, join: T) -> QResult<Self>
     where
         T: TryInto<Join, Error = QueryError>,
@@ -82,11 +99,33 @@ impl Select {
         Ok(self)
     }
 
-    /// where expressions are constructed as tuples, with the first
-    /// value being an Into<String> with a `?` placeholder.
+    /// Where expressions are constructed as either strings or tuples.
+    /// The first value in the tuple is the query fragment, and the remaining
+    /// are the values to pass in.
+    ///
+    /// Placeholders are `?` and _not_ the normal Postgres `$1, $2, $3` style.
+    /// They will be converted to the Postgres `$1` style when the query is built.
     ///
     /// One, two, or three values can be passed in, in addition to
     /// the first string value.
+    ///
+    /// Example:
+    /// ```
+    /// use composable_query_builder2::Select;
+    /// Select::from("my_table").where_("id > 0")?;
+    /// Select::from("my_table").where_(("id > ?", 0))?;
+    /// Select::from("my_table").where_(("id > ? and id < ?", 0, 10))?;
+    /// Select::from("my_table").where_(("id > ? and id < ? and other_col > ?", 0, 10, 5))?;
+    /// # Ok::<(), composable_query_builder2::QueryError>(())
+    /// ```
+    ///
+    /// Where clauses can also be composed:
+    /// ```
+    /// use composable_query_builder2::{Where, Select};
+    /// let sub: Where = ("id > ? and id < ?", 1, 10).try_into()?;
+    /// Select::from("my_table").where_(("id = 20 or (?)", sub))?;
+    /// # Ok::<(), composable_query_builder2::QueryError>(())
+    /// ```
     pub fn where_<T, E>(mut self, where_: T) -> QResult<Self>
     where
         T: TryInto<Where, Error = E>,
@@ -116,17 +155,16 @@ impl Select {
         Ok(self)
     }
 
-    /// column can be:
-    /// - something string like (String, &str),
-    /// - a tuple of 2, 3, or 4 string like things
-    /// - a vec of string like things
+    /// Adds one or more columns to the select statement.
+    ///
+    /// See [`IntoSelect`] for details on what can be passed in.
     pub fn select(mut self, column: impl IntoSelect) -> Self {
         self.select.append(&mut column.into_select());
         self
     }
 
     pub fn group_by(mut self, group_by: impl Into<String>) -> Self {
-        self.group_by = group_by.into().into_optional();
+        self.group_by = Some(group_by.into());
         self
     }
 
@@ -144,9 +182,19 @@ impl Select {
         self
     }
 
+    /// An alias for [Select::limit]
+    pub fn take(self, take: impl IntoOptional<u64>) -> Self {
+        self.limit(take)
+    }
+
     pub fn offset(mut self, offset: impl IntoOptional<u64>) -> Self {
         self.offset = offset.into_optional();
         self
+    }
+
+    /// An alais for [Select::offset]
+    pub fn skip(self, skip: impl IntoOptional<u64>) -> Self {
+        self.offset(skip)
     }
 
     pub fn parts(self) -> (String, Vec<SQLValue>) {
@@ -195,7 +243,7 @@ impl Select {
                     }
                 }
 
-                while let Some(part) = parts.next() {
+                for part in parts {
                     q.push_str(part);
                 }
             }
@@ -235,15 +283,21 @@ impl Select {
         // Where
         if !self.where_.is_empty() {
             q.push_str(" where ");
-            let l = self.where_.len() - 1;
-            for (last, clause) in self.where_.into_iter().enumerate().map(|x| (x.0 == l, x.1)) {
+            let last_index = self.where_.len() - 1;
+            for (index, clause) in self.where_.iter().enumerate() {
                 match clause {
-                    Where::Simple { expr, values, kind } => {
-                        q.push_str(&expr);
-                        vals.extend(values);
-                        if !last {
+                    Where::Simple {
+                        expr,
+                        values,
+                        kind: _,
+                    } => {
+                        q.push_str(expr);
+                        vals.extend(values.clone());
+                        if index != last_index {
+                            // Get the next kind
+                            let next_kind = self.where_.get(index + 1).unwrap().get_kind();
                             q.push(' ');
-                            q.push_str(kind.as_str());
+                            q.push_str(next_kind.as_str());
                             q.push(' ');
                         } else {
                             q.push(' ');
@@ -354,6 +408,7 @@ mod tests {
         let sql = q.sql();
         assert_eq!("select id from users", sql);
 
+        // Multiple selects append
         let q = Select::from("users")
             .select("id")
             .select("name")
@@ -438,6 +493,22 @@ mod tests {
     fn or_where_works() -> QResult<()> {
         let q = Select::from("users")
             .or_where(("status_id = ?", 1))?
+            .or_where(("status_id = ?", 2))?
+            .or_where(("status_id = ?", 3))?
+            .into_builder();
+        let query = q.sql();
+
+        assert_eq!(
+            "select * from users where status_id = $1 or status_id = $2 or status_id = $3 ",
+            query
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn mixed_and_or_where() -> QResult<()> {
+        let q = Select::from("users")
+            .where_(("status_id = ?", 1))?
             .or_where(("status_id = ?", 2))?
             .or_where(("status_id = ?", 3))?
             .into_builder();
