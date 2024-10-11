@@ -135,6 +135,17 @@ impl Select {
         Ok(self)
     }
 
+    pub fn where_if<T, E>(mut self, cond: bool, callback: impl Fn() -> T) -> QResult<Self>
+    where
+        T: TryInto<Where, Error = E>,
+        QueryError: From<E>,
+    {
+        if cond {
+            self.where_.push(callback().try_into()?);
+        }
+        Ok(self)
+    }
+
     pub fn where_in(mut self, col: impl Into<String>, values: Vec<i64>) -> Self {
         let expr = format!("{} = ANY(?)", col.into());
         self.where_.push(Where::Simple {
@@ -657,6 +668,15 @@ mod tests {
             "select * from users where id = 1 or id = 2 or id = 3 ",
             query
         );
+        Ok(())
+    }
+
+    #[test]
+    fn conditional_where() -> QResult<()> {
+        let q = Select::from("users").where_if(true, || ("id > ?", 5))?;
+        assert_eq!("select * from users where id > $1 ", q.into_builder().sql());
+        let q = Select::from("users").where_if(false, || ("id > ?", 5))?;
+        assert_eq!("select * from users", q.into_builder().sql());
         Ok(())
     }
 }
