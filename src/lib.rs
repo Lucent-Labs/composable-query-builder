@@ -58,6 +58,21 @@ impl From<(&str, Select)> for TableType {
         TableType::Complex(stmt.to_string(), vec![value])
     }
 }
+impl From<(String, Select)> for TableType {
+    fn from((stmt, value): (String, Select)) -> Self {
+        TableType::Complex(stmt, vec![value])
+    }
+}
+impl From<(&str, Select, Select)> for TableType {
+    fn from((stmt, value1, value2): (&str, Select, Select)) -> Self {
+        TableType::Complex(stmt.to_string(), vec![value1, value2])
+    }
+}
+impl From<(String, Select, Select)> for TableType {
+    fn from((stmt, value1, value2): (String, Select, Select)) -> Self {
+        TableType::Complex(stmt, vec![value1, value2])
+    }
+}
 
 impl Select {
     pub fn new() -> Self {
@@ -75,6 +90,11 @@ impl Select {
     pub fn from(table: impl Into<TableType>) -> Self {
         let q = Self::new();
         q.table(table)
+    }
+
+    pub fn union(a: Select, b: Select, alias: impl Into<String>) -> Self {
+        let q = format!("(? union ?) as {}", alias.into());
+        Self::from((q, a, b))
     }
 
     /// Example:
@@ -237,16 +257,16 @@ impl Select {
                 if let Some(part) = parts.next() {
                     q.push_str(part);
                 }
-                for (i, select) in v.iter().enumerate() {
+                for select in v.iter() {
                     let (sub_q, sub_vals) = select.clone().parts();
                     // println!("sub_q: {}", sub_q);
                     // println!("sub_vals: {:?}", sub_vals);
                     // q.push_str(" (");
                     q.push_str(sub_q.as_str());
                     // q.push(')');
-                    if i < v.len() - 1 {
-                        q.push_str(", ");
-                    }
+                    // if i < v.len() - 1 {
+                    //     q.push_str(", ");
+                    // }
                     vals.extend(sub_vals);
 
                     if let Some(part) = parts.next() {
@@ -690,6 +710,28 @@ mod tests {
 
         let q = Select::from("users").select(&["id", "email"]);
         assert_eq!("select id, email from users", q.into_builder().sql());
+        Ok(())
+    }
+
+    #[test]
+    fn it_can_union() -> QResult<()> {
+        let a = Select::from("users").where_(("id > ?", 5))?;
+        let b = Select::from("users").where_(("id < ?", 3))?;
+        let q = Select::from(("(? union ?) as t", a, b));
+
+        assert_eq!(
+            "select * from (select * from users where id > $1  union select * from users where id < $2 ) as t",
+            q.into_builder().sql()
+        );
+
+        let a = Select::from("users").where_(("id > ?", 5))?;
+        let b = Select::from("users").where_(("id < ?", 3))?;
+        let q = Select::union(a, b, "t");
+
+        assert_eq!(
+            "select * from (select * from users where id > $1  union select * from users where id < $2 ) as t",
+            q.into_builder().sql()
+        );
         Ok(())
     }
 }
