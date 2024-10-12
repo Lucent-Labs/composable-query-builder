@@ -94,8 +94,15 @@ impl Select {
         q.table(table)
     }
 
+    /// Just a helper. Shorthand for:
+    /// ```
+    /// use composable_query_builder2::Select;
+    /// let a = Select::from("my_table");
+    /// let b = Select::from("my_table");
+    /// Select::from(("((?) union (?) as alias", a, b));
+    /// ```
     pub fn union(a: Select, b: Select, alias: impl Into<String>) -> Self {
-        let q = format!("(? union ?) as {}", alias.into());
+        let q = format!("((?) union (?)) as {}", alias.into());
         Self::from((q, a, b))
     }
 
@@ -742,10 +749,10 @@ mod tests {
     fn it_can_union() -> QResult<()> {
         let a = Select::from("users").where_(("id > ?", 5))?;
         let b = Select::from("users").where_(("id < ?", 3))?;
-        let q = Select::from(("(? union ?) as t", a, b));
+        let q = Select::from(("((?) union (?)) as t", a, b));
 
         assert_eq!(
-            "select * from (select * from users where id > $1  union select * from users where id < $2 ) as t",
+            "select * from ((select * from users where id > $1 ) union (select * from users where id < $2 )) as t",
             q.into_builder().sql()
         );
 
@@ -754,7 +761,7 @@ mod tests {
         let q = Select::union(a, b, "t");
 
         assert_eq!(
-            "select * from (select * from users where id > $1  union select * from users where id < $2 ) as t",
+            "select * from ((select * from users where id > $1 ) union (select * from users where id < $2 )) as t",
             q.into_builder().sql()
         );
         Ok(())

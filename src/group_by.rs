@@ -24,7 +24,7 @@ impl<T: Into<String>> IntoGroupBy for Vec<T> {
 
 impl<T: Into<String> + Clone> IntoGroupBy for &[T] {
     fn into_group_by(self) -> String {
-        self.into_iter().cloned().map(|x| x.into()).join(", ")
+        self.iter().cloned().map(|x| x.into()).join(", ")
     }
 }
 
