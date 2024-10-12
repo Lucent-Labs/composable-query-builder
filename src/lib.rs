@@ -1,5 +1,6 @@
 mod bool_kind;
 mod error;
+mod group_by;
 mod join;
 mod optional_num;
 mod order;
@@ -17,6 +18,7 @@ pub use crate::r#where::{IntoWhere, Where, WhereBuilder};
 use crate::select::IntoSelect;
 pub use crate::sql_value::SQLValue;
 pub use error::QueryError;
+use group_by::IntoGroupBy;
 use itertools::{EitherOrBoth, Itertools};
 use sqlx::{Postgres, QueryBuilder};
 
@@ -194,8 +196,8 @@ impl Select {
         self
     }
 
-    pub fn group_by(mut self, group_by: impl Into<String>) -> Self {
-        self.group_by = Some(group_by.into());
+    pub fn group_by(mut self, group_by: impl IntoGroupBy) -> Self {
+        self.group_by = Some(group_by.into_group_by());
         self
     }
 
@@ -710,6 +712,29 @@ mod tests {
 
         let q = Select::from("users").select(&["id", "email"]);
         assert_eq!("select id, email from users", q.into_builder().sql());
+        Ok(())
+    }
+
+    #[test]
+    fn multi_group_by_works() -> QResult<()> {
+        let q = Select::from("my_table").group_by(("a", "b"));
+        assert_eq!(
+            "select * from my_table group by a, b ",
+            q.into_builder().sql()
+        );
+
+        let q = Select::from("my_table").group_by(["a", "b"]);
+        assert_eq!(
+            "select * from my_table group by a, b ",
+            q.into_builder().sql()
+        );
+
+        let q = Select::from("my_table").group_by(vec!["a", "b"]);
+        assert_eq!(
+            "select * from my_table group by a, b ",
+            q.into_builder().sql()
+        );
+
         Ok(())
     }
 
